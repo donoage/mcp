@@ -66,30 +66,53 @@ def create_polygon_mcp_server():
         env=env
     )
 
-# ------------- Agent Setup -------------
-def create_agent():
-    server = create_polygon_mcp_server()
-    agent = Agent(
-        model="anthropic:claude-sonnet-4-5-20250929",
-        mcp_servers=[server],
-        system_prompt=(
-            "You are an expert financial analyst. Note that when using Polygon tools, prices are already stock split adjusted. "
-            "Use the latest data available. Always double check your math. "
-            "For any questions about the current date, use the 'get_today_date' tool. "
-            "For long or complex queries, break the query into logical subtasks and process each subtask in order."
+# ------------- Global Agent Setup -------------
+# Initialize agent once at startup to avoid timeout issues
+print("[Startup] Initializing global agent and MCP server...")
+_global_server = None
+_global_agent = None
+
+def get_or_create_agent():
+    """Get or create the global agent instance"""
+    global _global_agent, _global_server
+    
+    if _global_agent is None:
+        print("[Agent] Creating new global agent...")
+        _global_server = create_polygon_mcp_server()
+        _global_agent = Agent(
+            model="anthropic:claude-sonnet-4-5-20250929",
+            mcp_servers=[_global_server],
+            system_prompt=(
+                "You are an expert financial analyst. Note that when using Polygon tools, prices are already stock split adjusted. "
+                "Use the latest data available. Always double check your math. "
+                "For any questions about the current date, use the 'get_today_date' tool. "
+                "For long or complex queries, break the query into logical subtasks and process each subtask in order."
+            )
         )
-    )
+        
+        # Add custom tool for today's date
+        @_global_agent.tool
+        def get_today_date(ctx: RunContext) -> str:
+            """Returns today's date in YYYY-MM-DD format."""
+            return str(date.today())
+        
+        print("[Agent] Global agent created successfully")
     
-    # Add custom tool for today's date
-    @agent.tool
-    def get_today_date(ctx: RunContext) -> str:
-        """Returns today's date in YYYY-MM-DD format."""
-        return str(date.today())
-    
-    return agent, server
+    return _global_agent, _global_server
 
 # Store active sessions
 sessions = {}
+
+@app.on_event("startup")
+async def startup_event():
+    """Pre-initialize the agent on startup"""
+    try:
+        print("[Startup] Pre-initializing agent...")
+        agent, server = get_or_create_agent()
+        print("[Startup] Agent pre-initialized successfully")
+    except Exception as e:
+        print(f"[Startup] Warning: Failed to pre-initialize agent: {str(e)}")
+        print("[Startup] Agent will be initialized on first WebSocket connection")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -105,10 +128,10 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"[WebSocket] New connection accepted, session_id: {session_id}")
         
         try:
-            agent, server = create_agent()
-            print(f"[WebSocket] Agent created successfully")
+            agent, server = get_or_create_agent()
+            print(f"[WebSocket] Using global agent")
         except Exception as e:
-            print(f"[WebSocket] Failed to create agent: {str(e)}")
+            print(f"[WebSocket] Failed to get agent: {str(e)}")
             await websocket.send_json({
                 "type": "error",
                 "message": f"Failed to initialize AI agent: {str(e)}"
