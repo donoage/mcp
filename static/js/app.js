@@ -197,10 +197,7 @@ exampleBtns.forEach(btn => {
         queryInput.value = query;
         queryInput.focus();
         
-        // Auto-submit after a short delay
-        setTimeout(() => {
-            submitQuery();
-        }, 300);
+        // Don't auto-submit, let user review and submit manually
     });
 });
 
