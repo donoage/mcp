@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Query AI - Financial Analysis</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="6" fill="#7C3AED"/>
+                    <path d="M8 20L12 12L16 16L20 8L24 14" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h1>Market Query AI</h1>
+            </div>
+            <div class="status" id="status">
+                <span class="status-dot"></span>
+                <span class="status-text">Ready</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Query Input Section -->
+            <div class="query-section">
+                <div class="query-header">
+                    <h2>Ask a Financial Question</h2>
+                    <p class="subtitle">Get instant insights powered by AI and real-time market data</p>
+                </div>
+                
+                <div class="query-input-container">
+                    <textarea 
+                        id="queryInput" 
+                        class="query-input" 
+                        placeholder="e.g., What is the latest price of Tesla? Compare Apple and Microsoft performance over the last year..."
+                        rows="3"
+                    ></textarea>
+                    <button id="submitBtn" class="submit-btn">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M2 10L18 10M18 10L11 3M18 10L11 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Analyze</span>
+                    </button>
+                </div>
+
+                <!-- Example Queries -->
+                <div class="example-queries">
+                    <span class="example-label">Try these:</span>
+                    <button class="example-btn" data-query="What are the historical gap up percentages on SPY in the past 2 years? Show by quarter.">SPY gap ups by quarter</button>
+                    <button class="example-btn" data-query="Compare the volatility of TSLA vs QQQ over the last 6 months. Show me the daily price ranges.">TSLA vs QQQ volatility</button>
+                    <button class="example-btn" data-query="What were the biggest single-day percentage moves for AAPL in the past year? Include dates and reasons if available.">AAPL biggest moves</button>
+                    <button class="example-btn" data-query="Show me the average daily volume for NVDA over the past 3 months compared to its 1-year average.">NVDA volume analysis</button>
+                    <button class="example-btn" data-query="What is the correlation between SPY and VIX over the past year? Show monthly breakdown.">SPY vs VIX correlation</button>
+                </div>
+            </div>
+
+            <!-- Response Section -->
+            <div class="response-section" id="responseSection" style="display: none;">
+                <div class="response-header">
+                    <h3>Analysis Results</h3>
+                    <button id="clearBtn" class="clear-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        Clear
+                    </button>
+                </div>
+                
+                <div class="response-content" id="responseContent">
+                    <!-- Response will be inserted here -->
+                </div>
+
+                <div class="tools-used" id="toolsUsed" style="display: none;">
+                    <div class="tools-header">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 2V8L12 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                        <span>Tools Used:</span>
+                    </div>
+                    <div class="tools-list" id="toolsList"></div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="loading-state" id="loadingState" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Analyzing market data...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="error-state" id="errorState" style="display: none;">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <circle cx="24" cy="24" r="20" stroke="#EF4444" stroke-width="2"/>
+                    <path d="M24 14V26M24 32V34" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <h3>Error</h3>
+                <p id="errorMessage"></p>
+                <button id="retryBtn" class="retry-btn">Try Again</button>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by <strong>Polygon.io</strong> • <strong>Claude 4</strong> • <strong>Pydantic AI</strong></p>
+            <p class="disclaimer">This tool provides AI-generated financial analysis. Always verify information before making investment decisions.</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
