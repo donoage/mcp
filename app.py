@@ -48,13 +48,18 @@ templates = Jinja2Templates(directory="templates")
 # ------------- MCP Server Factory -------------
 def create_polygon_mcp_server():
     """Create Polygon.io MCP server"""
+    print("[MCP] Creating Polygon.io MCP server...")
     polygon_api_key = os.getenv("POLYGON_API_KEY")
     if not polygon_api_key:
+        print("[MCP] ERROR: POLYGON_API_KEY not found")
         raise Exception("POLYGON_API_KEY is not set in the environment or .env file.")
+    
+    print(f"[MCP] POLYGON_API_KEY found: {polygon_api_key[:10]}...")
     env = os.environ.copy()
     env["POLYGON_API_KEY"] = polygon_api_key
     
     # Use official Polygon.io MCP server
+    print("[MCP] Initializing MCPServerStdio with uvx...")
     return MCPServerStdio(
         command="uvx",
         args=[
@@ -101,9 +106,22 @@ async def websocket_endpoint(websocket: WebSocket):
     message_history = []
     
     try:
-        agent, server = create_agent()
+        print(f"[WebSocket] New connection accepted, session_id: {session_id}")
+        
+        try:
+            agent, server = create_agent()
+            print(f"[WebSocket] Agent created successfully")
+        except Exception as e:
+            print(f"[WebSocket] Failed to create agent: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Failed to initialize AI agent: {str(e)}"
+            })
+            await websocket.close()
+            return
         
         async with agent.run_mcp_servers():
+            print(f"[WebSocket] MCP servers started")
             await websocket.send_json({
                 "type": "connected",
                 "message": "Connected to Market Query AI"
