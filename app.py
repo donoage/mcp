@@ -58,11 +58,11 @@ def create_polygon_mcp_server():
     env = os.environ.copy()
     env["POLYGON_API_KEY"] = polygon_api_key
     
-    # Use python -m to run the installed mcp_polygon package
-    print("[MCP] Initializing MCPServerStdio with python -m mcp_polygon...")
+    # Use the mcp_polygon command directly (installed as a console script)
+    print("[MCP] Initializing MCPServerStdio with mcp_polygon command...")
     return MCPServerStdio(
-        command="python",
-        args=["-m", "mcp_polygon"],
+        command="mcp_polygon",
+        args=[],
         env=env
     )
 
