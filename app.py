@@ -2,6 +2,7 @@ import os
 import asyncio
 from datetime import date
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -258,14 +259,22 @@ async def websocket_endpoint(websocket: WebSocket):
             del sessions[session_id]
     except Exception as e:
         print(f"[WebSocket] Unexpected error: {str(e)}")
+        # Try to send error message, but don't fail if connection is already closed
         try:
-            await websocket.send_json({
-                "type": "error",
-                "message": f"Server error: {str(e)}"
-            })
-            await websocket.close()
-        except:
-            pass  # Connection might already be closed
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Server error: {str(e)}"
+                })
+        except Exception as send_error:
+            print(f"[WebSocket] Could not send error message: {send_error}")
+        
+        # Try to close connection gracefully
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.close()
+        except Exception as close_error:
+            print(f"[WebSocket] Could not close connection: {close_error}")
 
 if __name__ == "__main__":
     import uvicorn
