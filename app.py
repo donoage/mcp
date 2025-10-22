@@ -120,109 +120,130 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close()
             return
         
-        async with agent.run_mcp_servers():
-            print(f"[WebSocket] MCP servers started")
+        try:
+            async with asyncio.timeout(30):  # 30 second timeout for MCP server startup
+                async with agent.run_mcp_servers():
+                    print(f"[WebSocket] MCP servers started successfully")
+                    await websocket.send_json({
+                        "type": "connected",
+                        "message": "Connected to Market Query AI"
+                    })
+                    
+                    while True:
+                        try:
+                            data = await websocket.receive_text()
+                            user_query = json.loads(data)
+                            query_text = user_query.get("query", "").strip()
+                            
+                            if not query_text:
+                                continue
+                            
+                            # Check rate limit
+                            can_proceed, wait_time = await rate_limiter.acquire()
+                            if not can_proceed:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": f"Rate limit exceeded. Please wait {int(wait_time)} seconds before trying again. This helps prevent API rate limit errors."
+                                })
+                                continue
+                            
+                            # Send processing status
+                            await websocket.send_json({
+                                "type": "processing",
+                                "message": "Processing your query..."
+                            })
+                            
+                            try:
+                                # Run the agent with timeout
+                                response = await asyncio.wait_for(
+                                    agent.run(
+                                        query_text,
+                                        message_history=message_history
+                                    ),
+                                    timeout=60.0  # 60 second timeout
+                                )
+                                
+                                # Extract tools used
+                                tools_used = []
+                                for msg in response.all_messages():
+                                    if hasattr(msg, "parts"):
+                                        for part in msg.parts:
+                                            if hasattr(part, "tool_name"):
+                                                tools_used.append(part.tool_name)
+                                
+                                # Get response output
+                                output = getattr(response, "output", str(response))
+                                
+                                # Convert markdown to HTML if needed
+                                html_output = markdown.markdown(output, extensions=['tables', 'fenced_code'])
+                                
+                                # Send response
+                                await websocket.send_json({
+                                    "type": "response",
+                                    "data": {
+                                        "output": html_output,
+                                        "raw_output": output,
+                                        "tools_used": list(set(tools_used))
+                                    }
+                                })
+                                
+                                # Update message history
+                                # Don't limit history to avoid breaking tool_use/tool_result pairs
+                                message_history = response.all_messages()
+                                
+                            except asyncio.TimeoutError:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": "Query timed out after 60 seconds. Please try a simpler query or try again later."
+                                })
+                            except Exception as e:
+                                error_msg = str(e)
+                                # Handle rate limit errors specifically
+                                if "rate_limit_error" in error_msg or "429" in error_msg:
+                                    await websocket.send_json({
+                                        "type": "error",
+                                        "message": "API rate limit exceeded. Please wait a minute before trying again. Consider using simpler queries or reducing query frequency."
+                                    })
+                                else:
+                                    await websocket.send_json({
+                                        "type": "error",
+                                        "message": f"Error: {error_msg}"
+                                    })
+                        
+                        except json.JSONDecodeError:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": "Invalid JSON format"
+                            })
+        except asyncio.TimeoutError:
+            print(f"[WebSocket] MCP server startup timed out")
             await websocket.send_json({
-                "type": "connected",
-                "message": "Connected to Market Query AI"
+                "type": "error",
+                "message": "Failed to start MCP server: timeout. The server is taking too long to initialize. Please try again."
             })
-            
-            while True:
-                try:
-                    data = await websocket.receive_text()
-                    user_query = json.loads(data)
-                    query_text = user_query.get("query", "").strip()
-                    
-                    if not query_text:
-                        continue
-                    
-                    # Check rate limit
-                    can_proceed, wait_time = await rate_limiter.acquire()
-                    if not can_proceed:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": f"Rate limit exceeded. Please wait {int(wait_time)} seconds before trying again. This helps prevent API rate limit errors."
-                        })
-                        continue
-                    
-                    # Send processing status
-                    await websocket.send_json({
-                        "type": "processing",
-                        "message": "Processing your query..."
-                    })
-                    
-                    try:
-                        # Run the agent with timeout
-                        response = await asyncio.wait_for(
-                            agent.run(
-                                query_text,
-                                message_history=message_history
-                            ),
-                            timeout=60.0  # 60 second timeout
-                        )
-                        
-                        # Extract tools used
-                        tools_used = []
-                        for msg in response.all_messages():
-                            if hasattr(msg, "parts"):
-                                for part in msg.parts:
-                                    if hasattr(part, "tool_name"):
-                                        tools_used.append(part.tool_name)
-                        
-                        # Get response output
-                        output = getattr(response, "output", str(response))
-                        
-                        # Convert markdown to HTML if needed
-                        html_output = markdown.markdown(output, extensions=['tables', 'fenced_code'])
-                        
-                        # Send response
-                        await websocket.send_json({
-                            "type": "response",
-                            "data": {
-                                "output": html_output,
-                                "raw_output": output,
-                                "tools_used": list(set(tools_used))
-                            }
-                        })
-                        
-                        # Update message history
-                        # Don't limit history to avoid breaking tool_use/tool_result pairs
-                        message_history = response.all_messages()
-                        
-                    except asyncio.TimeoutError:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Query timed out after 60 seconds. Please try a simpler query or try again later."
-                        })
-                    except Exception as e:
-                        error_msg = str(e)
-                        # Handle rate limit errors specifically
-                        if "rate_limit_error" in error_msg or "429" in error_msg:
-                            await websocket.send_json({
-                                "type": "error",
-                                "message": "API rate limit exceeded. Please wait a minute before trying again. Consider using simpler queries or reducing query frequency."
-                            })
-                        else:
-                            await websocket.send_json({
-                                "type": "error",
-                                "message": f"Error: {error_msg}"
-                            })
-                
-                except json.JSONDecodeError:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Invalid JSON format"
-                    })
+            await websocket.close()
+        except Exception as e:
+            print(f"[WebSocket] MCP server startup failed: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Failed to start MCP server: {str(e)}"
+            })
+            await websocket.close()
                     
     except WebSocketDisconnect:
+        print(f"[WebSocket] Client disconnected, session_id: {session_id}")
         if session_id in sessions:
             del sessions[session_id]
     except Exception as e:
-        await websocket.send_json({
-            "type": "error",
-            "message": f"Server error: {str(e)}"
-        })
-        await websocket.close()
+        print(f"[WebSocket] Unexpected error: {str(e)}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Server error: {str(e)}"
+            })
+            await websocket.close()
+        except:
+            pass  # Connection might already be closed
 
 if __name__ == "__main__":
     import uvicorn
